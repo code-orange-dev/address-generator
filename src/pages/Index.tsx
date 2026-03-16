@@ -70,23 +70,25 @@ const BitcoinAddressGenerator = () => {
 
   
 
-  const generateBitcoinAddress = useCallback(async (privateKeyHex: string, compressed: boolean = true) => {
+  
+
+  const handleGenerateNewAddress = useCallback(async () => {
+    if (isGenerating) return;
+    
+    const privateKey = generateRandomPrivateKey();
+    
+    // Generate Bitcoin address directly here to avoid circular dependency
     setIsGenerating(true);
     
     try {
-      // Validate private key
-      if (!privateKeyHex || privateKeyHex.length !== 64) {
-        throw new Error('Invalid private key');
-      }
-
       // Step 1: Initialize elliptic curve for secp256k1
       const ec = new elliptic.ec('secp256k1');
       
       // Step 2: Create key pair from private key
-      const keyPair = ec.keyFromPrivate(privateKeyHex);
+      const keyPair = ec.keyFromPrivate(privateKey);
       
       // Step 3: Get public key (compressed or uncompressed)
-      const publicKey = keyPair.getPublic(compressed, 'hex');
+      const publicKey = keyPair.getPublic(true, 'hex');
       
       // Step 4: SHA-256 hash of public key
       const sha256Hash1 = cryptoJS.SHA256(cryptoJS.enc.Hex.parse(publicKey));
@@ -136,13 +138,13 @@ const BitcoinAddressGenerator = () => {
       });
 
       const result: BitcoinAddressData = {
-        privateKey: privateKeyHex,
+        privateKey: privateKey,
         publicKey: publicKey.toUpperCase(),
         publicKeyHash,
         versionedHash: versionedHash.toUpperCase(),
         checksum,
         bitcoinAddress,
-        compressed
+        compressed: true
       };
 
       setAddressData(result);
@@ -152,14 +154,7 @@ const BitcoinAddressGenerator = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, []);
-
-  const handleGenerateNewAddress = useCallback(async () => {
-    if (isGenerating) return;
-    
-    const privateKey = generateRandomPrivateKey();
-    await generateBitcoinAddress(privateKey);
-  }, [generateRandomPrivateKey, generateBitcoinAddress, isGenerating]);
+  }, [generateRandomPrivateKey, isGenerating]);
 
   const copyToClipboard = useCallback(async (text: string) => {
     try {
