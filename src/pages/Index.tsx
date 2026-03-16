@@ -163,7 +163,7 @@ const BitcoinAddressGenerator = () => {
     } catch (error) {
       console.error('Failed to generate new address:', error);
     }
-  }, [generateRandomPrivateKey, generateBitcoinAddress, isGenerating]);
+  }, [generateRandomPrivateKey, generateBitcoinAddress]);
 
   const copyToClipboard = useCallback(async (text: string) => {
     try {
