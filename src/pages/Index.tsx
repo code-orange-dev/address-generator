@@ -8,6 +8,7 @@ import QRCode from 'qrcode';
 import * as elliptic from 'elliptic';
 import * as cryptoJS from 'crypto-js';
 import baseX from 'base-x';
+import { Buffer } from 'buffer';
 
 interface BitcoinAddressData {
   privateKey: string;
@@ -28,19 +29,43 @@ const BitcoinAddressGenerator = () => {
   const [addressData, setAddressData] = useState<BitcoinAddressData | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Generate initial address on component mount
   useEffect(() => {
-    handleGenerateNewAddress();
+    const initialize = async () => {
+      try {
+        await handleGenerateNewAddress();
+      } catch (error) {
+        console.error('Failed to initialize:', error);
+      } finally {
+        setIsInitialized(true);
+      }
+    };
+    
+    initialize();
   }, []);
 
   const generateRandomPrivateKey = useCallback(() => {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return Array.from(array)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-      .toUpperCase();
+    try {
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      return Array.from(array)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .toUpperCase();
+    } catch (error) {
+      console.error('Error generating private key:', error);
+      // Fallback to Math.random() if crypto.getRandomValues is not available
+      const array = new Array(32);
+      for (let i = 0; i < 32; i++) {
+        array[i] = Math.floor(Math.random() * 256);
+      }
+      return Array.from(array)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .toUpperCase();
+    }
   }, []);
 
   
@@ -49,6 +74,11 @@ const BitcoinAddressGenerator = () => {
     setIsGenerating(true);
     
     try {
+      // Validate private key
+      if (!privateKeyHex || privateKeyHex.length !== 64) {
+        throw new Error('Invalid private key');
+      }
+
       // Step 1: Initialize elliptic curve for secp256k1
       const ec = new elliptic.ec('secp256k1');
       
@@ -57,8 +87,7 @@ const BitcoinAddressGenerator = () => {
       
       // Step 3: Get public key (compressed or uncompressed)
       const publicKey = keyPair.getPublic(compressed, 'hex');
-      const publicKeyBytes = Buffer.from(publicKey, 'hex');
-
+      
       // Step 4: SHA-256 hash of public key
       const sha256Hash1 = cryptoJS.SHA256(cryptoJS.enc.Hex.parse(publicKey));
       
@@ -81,8 +110,18 @@ const BitcoinAddressGenerator = () => {
       // Step 9: Base58Check encoding
       const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
       const bs58 = baseX(BASE58_ALPHABET);
-      const finalBytes = Buffer.from(finalHex, 'hex');
-      const bitcoinAddress = bs58.encode(finalBytes);
+      
+      // Convert hex string to bytes for base58 encoding
+      const finalBytes = [];
+      for (let i = 0; i < finalHex.length; i += 2) {
+        finalBytes.push(parseInt(finalHex.substr(i, 2), 16));
+      }
+      const bitcoinAddress = bs58.encode(new Uint8Array(finalBytes));
+
+      // Validate that the Bitcoin address starts with 1 (P2PKH)
+      if (!bitcoinAddress.startsWith('1')) {
+        throw new Error('Invalid Bitcoin address generated');
+      }
 
       // Generate QR code
       const qrData = `bitcoin:${bitcoinAddress}`;
@@ -109,19 +148,27 @@ const BitcoinAddressGenerator = () => {
       setQrCodeUrl(qrUrl);
     } catch (error) {
       console.error('Error generating Bitcoin address:', error);
+      throw error; // Re-throw to handle it in the calling function
     } finally {
       setIsGenerating(false);
     }
   }, []);
 
   const handleGenerateNewAddress = useCallback(async () => {
-    const privateKey = generateRandomPrivateKey();
-    await generateBitcoinAddress(privateKey);
-  }, [generateRandomPrivateKey, generateBitcoinAddress]);
+    if (isGenerating) return;
+    
+    try {
+      const privateKey = generateRandomPrivateKey();
+      await generateBitcoinAddress(privateKey);
+    } catch (error) {
+      console.error('Failed to generate new address:', error);
+    }
+  }, [generateRandomPrivateKey, generateBitcoinAddress, isGenerating]);
 
   const copyToClipboard = useCallback(async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
+      // You could add a toast notification here if needed
     } catch (error) {
       console.error('Failed to copy to clipboard:', error);
     }
@@ -170,7 +217,16 @@ const BitcoinAddressGenerator = () => {
         </Card>
 
         {/* Results */}
-        {addressData && (
+        {!isInitialized ? (
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-center space-x-2 text-gray-400">
+                <RefreshCw className="h-5 w-5 animate-spin" />
+                <p>Initializing Bitcoin Address Generator...</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : addressData ? (
           <div className="grid gap-6">
             {/* Private Key */}
             <Card className="bg-gray-800 border-gray-700">
@@ -388,6 +444,15 @@ const BitcoinAddressGenerator = () => {
               </Card>
             )}
           </div>
+        ) : (
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-center space-x-2 text-red-400">
+                <AlertTriangle className="h-5 w-5" />
+                <p>Failed to generate Bitcoin address. Please try again.</p>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>
