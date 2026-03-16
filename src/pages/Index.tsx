@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSeoMeta } from '@unhead/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,15 +29,34 @@ const BitcoinAddressGenerator = () => {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const generateRandomPrivateKey = () => {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return Array.from(array)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-      .toUpperCase();
+    try {
+      const array = new Uint8Array(32);
+      if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        crypto.getRandomValues(array);
+      } else {
+        // Fallback for environments without crypto.getRandomValues
+        for (let i = 0; i < 32; i++) {
+          array[i] = Math.floor(Math.random() * 256);
+        }
+      }
+      return Array.from(array)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .toUpperCase();
+    } catch (error) {
+      console.error('Error generating private key:', error);
+      // Emergency fallback
+      let key = '';
+      for (let i = 0; i < 64; i++) {
+        key += Math.floor(Math.random() * 16).toString(16);
+      }
+      return key.toUpperCase();
+    }
   };
 
   const generateBitcoinAddress = async () => {
+    if (isGenerating) return;
+    
     setIsGenerating(true);
     
     try {
@@ -83,6 +102,11 @@ const BitcoinAddressGenerator = () => {
       }
       const bitcoinAddress = bs58.encode(new Uint8Array(finalBytes));
 
+      // Validate Bitcoin address
+      if (!bitcoinAddress || !bitcoinAddress.startsWith('1')) {
+        throw new Error('Invalid Bitcoin address generated');
+      }
+
       // Step 11: Generate QR code
       const qrData = `bitcoin:${bitcoinAddress}`;
       const qrUrl = await QRCode.toDataURL(qrData, {
@@ -92,6 +116,9 @@ const BitcoinAddressGenerator = () => {
           dark: '#000000',
           light: '#FFFFFF'
         }
+      }).catch(() => {
+        // If QR code generation fails, return a simple data URL
+        return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
       });
 
       // Step 12: Update state with all data
@@ -109,6 +136,15 @@ const BitcoinAddressGenerator = () => {
       
     } catch (error) {
       console.error('Error generating Bitcoin address:', error);
+      // Set error state to show user
+      setAddressData({
+        privateKey: 'ERROR',
+        publicKey: 'ERROR',
+        publicKeyHash: 'ERROR',
+        versionedHash: 'ERROR',
+        checksum: 'ERROR',
+        bitcoinAddress: 'ERROR_GENERATING_ADDRESS'
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -116,7 +152,23 @@ const BitcoinAddressGenerator = () => {
 
   const copyToClipboard = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      if (!text || text === 'ERROR') return;
+      
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
     } catch (error) {
       console.error('Failed to copy to clipboard:', error);
     }
