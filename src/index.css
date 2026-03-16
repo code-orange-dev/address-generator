@@ -49,6 +49,8 @@
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --bitcoin-orange: 33 100% 48%;
   }
 
   .dark {
@@ -87,6 +89,8 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --bitcoin-orange: 33 100% 48%;
   }
 }
 
@@ -97,5 +101,42 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Force dark mode for Bitcoin Address Generator */
+  .bitcoin-generator {
+    color-scheme: dark;
+  }
+
+  /* Bitcoin orange color utility */
+  .text-bitcoin-orange {
+    color: #f7931a;
+  }
+
+  .bg-bitcoin-orange {
+    background-color: #f7931a;
+  }
+
+  .border-bitcoin-orange {
+    border-color: #f7931a;
+  }
+
+  /* Custom scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #1f2937;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
   }
 }
