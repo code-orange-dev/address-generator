@@ -120,7 +120,8 @@ const BitcoinAddressGenerator = () => {
 
       // Validate that the Bitcoin address starts with 1 (P2PKH)
       if (!bitcoinAddress.startsWith('1')) {
-        throw new Error('Invalid Bitcoin address generated');
+        console.error('Invalid Bitcoin address generated:', bitcoinAddress);
+        return;
       }
 
       // Generate QR code
@@ -148,7 +149,6 @@ const BitcoinAddressGenerator = () => {
       setQrCodeUrl(qrUrl);
     } catch (error) {
       console.error('Error generating Bitcoin address:', error);
-      throw error; // Re-throw to handle it in the calling function
     } finally {
       setIsGenerating(false);
     }
@@ -157,13 +157,9 @@ const BitcoinAddressGenerator = () => {
   const handleGenerateNewAddress = useCallback(async () => {
     if (isGenerating) return;
     
-    try {
-      const privateKey = generateRandomPrivateKey();
-      await generateBitcoinAddress(privateKey);
-    } catch (error) {
-      console.error('Failed to generate new address:', error);
-    }
-  }, [generateRandomPrivateKey, generateBitcoinAddress]);
+    const privateKey = generateRandomPrivateKey();
+    await generateBitcoinAddress(privateKey);
+  }, [generateRandomPrivateKey, generateBitcoinAddress, isGenerating]);
 
   const copyToClipboard = useCallback(async (text: string) => {
     try {
