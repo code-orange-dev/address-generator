@@ -8,7 +8,6 @@ import QRCode from 'qrcode';
 import * as elliptic from 'elliptic';
 import * as cryptoJS from 'crypto-js';
 import baseX from 'base-x';
-import { Buffer } from 'buffer';
 
 interface BitcoinAddressData {
   privateKey: string;
@@ -17,7 +16,6 @@ interface BitcoinAddressData {
   versionedHash: string;
   checksum: string;
   bitcoinAddress: string;
-  compressed: boolean;
 }
 
 const BitcoinAddressGenerator = () => {
@@ -29,87 +27,52 @@ const BitcoinAddressGenerator = () => {
   const [addressData, setAddressData] = useState<BitcoinAddressData | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Generate initial address on component mount
-  useEffect(() => {
-    const initialize = async () => {
-      try {
-        await handleGenerateNewAddress();
-      } catch (error) {
-        console.error('Failed to initialize:', error);
-      } finally {
-        setIsInitialized(true);
-      }
-    };
-    
-    initialize();
-  }, []);
+  const generateRandomPrivateKey = () => {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase();
+  };
 
-  const generateRandomPrivateKey = useCallback(() => {
-    try {
-      const array = new Uint8Array(32);
-      crypto.getRandomValues(array);
-      return Array.from(array)
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('')
-        .toUpperCase();
-    } catch (error) {
-      console.error('Error generating private key:', error);
-      // Fallback to Math.random() if crypto.getRandomValues is not available
-      const array = new Array(32);
-      for (let i = 0; i < 32; i++) {
-        array[i] = Math.floor(Math.random() * 256);
-      }
-      return Array.from(array)
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('')
-        .toUpperCase();
-    }
-  }, []);
-
-  
-
-  
-
-  const handleGenerateNewAddress = useCallback(async () => {
-    if (isGenerating) return;
-    
-    const privateKey = generateRandomPrivateKey();
-    
-    // Generate Bitcoin address directly here to avoid circular dependency
+  const generateBitcoinAddress = async () => {
     setIsGenerating(true);
     
     try {
-      // Step 1: Initialize elliptic curve for secp256k1
+      // Step 1: Generate random private key
+      const privateKey = generateRandomPrivateKey();
+
+      // Step 2: Initialize elliptic curve for secp256k1
       const ec = new elliptic.ec('secp256k1');
       
-      // Step 2: Create key pair from private key
+      // Step 3: Create key pair from private key
       const keyPair = ec.keyFromPrivate(privateKey);
       
-      // Step 3: Get public key (compressed or uncompressed)
+      // Step 4: Get public key (compressed)
       const publicKey = keyPair.getPublic(true, 'hex');
       
-      // Step 4: SHA-256 hash of public key
+      // Step 5: SHA-256 hash of public key
       const sha256Hash1 = cryptoJS.SHA256(cryptoJS.enc.Hex.parse(publicKey));
       
-      // Step 5: RIPEMD-160 hash of SHA-256 result
+      // Step 6: RIPEMD-160 hash of SHA-256 result
       const ripemd160Hash = cryptoJS.RIPEMD160(sha256Hash1);
       const publicKeyHash = ripemd160Hash.toString(cryptoJS.enc.Hex).toUpperCase();
 
-      // Step 6: Add version byte (0x00 for mainnet P2PKH)
+      // Step 7: Add version byte (0x00 for mainnet P2PKH)
       const versionByte = '00';
       const versionedHash = versionByte + publicKeyHash;
 
-      // Step 7: Generate checksum (double SHA-256)
+      // Step 8: Generate checksum (double SHA-256)
       const sha256Hash2 = cryptoJS.SHA256(cryptoJS.enc.Hex.parse(versionedHash));
       const sha256Hash3 = cryptoJS.SHA256(sha256Hash2);
       const checksum = sha256Hash3.toString(cryptoJS.enc.Hex).substring(0, 8).toUpperCase();
 
-      // Step 8: Combine versioned hash + checksum
+      // Step 9: Combine versioned hash + checksum
       const finalHex = versionedHash + checksum;
 
-      // Step 9: Base58Check encoding
+      // Step 10: Base58Check encoding
       const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
       const bs58 = baseX(BASE58_ALPHABET);
       
@@ -120,13 +83,7 @@ const BitcoinAddressGenerator = () => {
       }
       const bitcoinAddress = bs58.encode(new Uint8Array(finalBytes));
 
-      // Validate that the Bitcoin address starts with 1 (P2PKH)
-      if (!bitcoinAddress.startsWith('1')) {
-        console.error('Invalid Bitcoin address generated:', bitcoinAddress);
-        return;
-      }
-
-      // Generate QR code
+      // Step 11: Generate QR code
       const qrData = `bitcoin:${bitcoinAddress}`;
       const qrUrl = await QRCode.toDataURL(qrData, {
         width: 200,
@@ -137,32 +94,37 @@ const BitcoinAddressGenerator = () => {
         }
       });
 
+      // Step 12: Update state with all data
       const result: BitcoinAddressData = {
-        privateKey: privateKey,
+        privateKey,
         publicKey: publicKey.toUpperCase(),
         publicKeyHash,
         versionedHash: versionedHash.toUpperCase(),
         checksum,
-        bitcoinAddress,
-        compressed: true
+        bitcoinAddress
       };
 
       setAddressData(result);
       setQrCodeUrl(qrUrl);
+      
     } catch (error) {
       console.error('Error generating Bitcoin address:', error);
     } finally {
       setIsGenerating(false);
     }
-  }, [generateRandomPrivateKey, isGenerating]);
+  };
 
-  const copyToClipboard = useCallback(async (text: string) => {
+  const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      // You could add a toast notification here if needed
     } catch (error) {
       console.error('Failed to copy to clipboard:', error);
     }
+  };
+
+  // Generate initial address on component mount
+  useEffect(() => {
+    generateBitcoinAddress();
   }, []);
 
   return (
@@ -181,7 +143,7 @@ const BitcoinAddressGenerator = () => {
         {/* Generate Button */}
         <div className="text-center">
           <Button
-            onClick={handleGenerateNewAddress}
+            onClick={generateBitcoinAddress}
             disabled={isGenerating}
             className="bg-orange-500 hover:bg-orange-600 text-black font-semibold px-8 py-3 text-lg"
             style={{ backgroundColor: '#f7931a' }}
@@ -208,16 +170,7 @@ const BitcoinAddressGenerator = () => {
         </Card>
 
         {/* Results */}
-        {!isInitialized ? (
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-center space-x-2 text-gray-400">
-                <RefreshCw className="h-5 w-5 animate-spin" />
-                <p>Initializing Bitcoin Address Generator...</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : addressData ? (
+        {addressData ? (
           <div className="grid gap-6">
             {/* Private Key */}
             <Card className="bg-gray-800 border-gray-700">
@@ -276,7 +229,7 @@ const BitcoinAddressGenerator = () => {
                         </Button>
                       </div>
                       <p className="text-xs text-gray-400 mt-1">
-                        {addressData.compressed ? 'Compressed' : 'Uncompressed'} public key derived from private key
+                        Compressed public key derived from private key
                       </p>
                     </div>
                   </div>
@@ -438,9 +391,9 @@ const BitcoinAddressGenerator = () => {
         ) : (
           <Card className="bg-gray-800 border-gray-700">
             <CardContent className="pt-6">
-              <div className="flex items-center justify-center space-x-2 text-red-400">
-                <AlertTriangle className="h-5 w-5" />
-                <p>Failed to generate Bitcoin address. Please try again.</p>
+              <div className="flex items-center justify-center space-x-2 text-gray-400">
+                <RefreshCw className="h-5 w-5 animate-spin" />
+                <p>Generating Bitcoin address...</p>
               </div>
             </CardContent>
           </Card>
