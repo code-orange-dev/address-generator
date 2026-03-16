@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useSeoMeta } from '@unhead/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +28,11 @@ const BitcoinAddressGenerator = () => {
   const [addressData, setAddressData] = useState<BitcoinAddressData | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Generate initial address on component mount
+  useEffect(() => {
+    handleGenerateNewAddress();
+  }, []);
 
   const generateRandomPrivateKey = useCallback(() => {
     const array = new Uint8Array(32);
