@@ -1,6 +1,6 @@
 # address-generator
 
-Part of **[Code Orange Dev School](https://github.com/code-orange-dev)** — Asia's Bitcoin developer pipeline. We train regular developers and curious Bitcoiners into active open-source contributors.
+Part of **[Code Orange Dev School](https://github.com/code-orange-dev)** — a Bitcoin-only developer education program for developers and technical Bitcoiners who want to contribute to open-source Bitcoin software.
 
 All materials here are released under **[CC0 1.0](./LICENSE)** (public domain) — use, fork, translate, and teach freely.
 
